@@ -1,0 +1,723 @@
+---
+title: "Systematic mapping on MA of animal cognitnion"
+format: html
+# editor: visual
+date: "`r Sys.Date()`"
+author: 
+ - name: Ayumi Mizuno
+ - name: Malgorzata Lagisz
+ - name: Pietro Pollo
+ - name: Lauren Guillette
+ - name: Masayo Soma
+ - name: Shinichi Nakagawa
+html:
+  theme: cerulean
+  toc: true
+  toc-location: left
+  toc-depth: 2
+  number-sections: false
+  code-fold: show
+execute:
+  warning: false
+  message: false
+  tidy: true
+---
+
+# Download packages
+
+```{r}
+#| label: load_packages
+
+pacman::p_load(
+  tidyverse,       # Includes ggplot2, dplyr, and tidyr. Used for data manipulation, cleaning, and visualisation.
+  here,            # For loading and saving files
+  stringr,         # For working with strings
+  formatR,         # For formatting R code
+  forcats,         # For working with categorical data
+  ggplot2,         # For data visualization
+  hrbrthemes,      # Provides additional themes for ggplot2 visualizations
+  patchwork,       # For combining multiple ggplot2 plots into one
+  bibliometrix,    # For bibliometric analysis
+  igraph,          # For creating and analyzing graph data
+  RColorBrewer,    # For color palettes
+  circlize,        # For circular visualization of data
+  bibtex,          # For working with BibTeX files and references
+  mapproj,         # For map projections
+  cowplot,         # For combining and customizing ggplot2 plots
+  readxl,          # For reading Excel files
+  ape,             # For phylogenetic analysis
+  ggnewscale,      # For adding multiple color or fill scales to ggplot2 plots
+  ggtreeExtra,     # Adds extra layers to ggtree
+  stringr,         # For string manipulation
+  tidystringdist,  # For computing string distances with tidy data
+  stringdist,      # For string distance calculations
+  fuzzyjoin,       # For joining datasets based on approximate matching
+  viridis,         # For colorblind-friendly color maps
+  tm,              # For text mining
+  rnaturalearth,   # For maps and spatial data
+  rnaturalearthdata, # Supporting data for rnaturalearth
+  ggrepel,         # For creating better text labels in ggplot2
+  ggraph,          # For graph visualization using ggplot2
+ComplexUpset,          # For upset plots
+  scico,           # For colours
+  paletteer,      # For colours
+  sf
+)
+
+```
+
+# fig 1
+```{r}
+dat_fig1 <- read.csv(here("data", "fig1_trend.csv"))
+head(fig1, 20)
+dat_fig1_long <- dat_fig1 %>%
+  pivot_longer(cols = c(animcog_research, animcog_review, 
+                        biol_research, biol_review), 
+               names_to = "type", 
+               values_to = "count") %>%
+  mutate(
+    Field = case_when(
+      str_detect(type, "animcog") ~ "Animal cognition",
+      str_detect(type, "biol") ~ "Life science"
+    ),
+    Paper_type = case_when(
+      str_detect(type, "research") ~ "Original research",
+      str_detect(type, "review") ~ "Review"
+    )
+  )
+
+fig1 <- ggplot(dat_fig1_long, aes(x = year, y = count)) +
+  geom_point(aes(shape = Paper_type, color = Field), alpha = 0.7) +
+  geom_smooth(aes(linetype = Paper_type, color = Field), method = "lm", se = TRUE) +
+  scale_y_log10(labels = scales::label_log(digits = 2)) +
+  scale_x_continuous(breaks = seq(1975, 2025, 5)) +
+  labs(
+    x = "Year", 
+    y = "Count of papers", 
+    shape = "Paper type", 
+    linetype = "Paper type",
+    color = "Field"
+  ) +
+  theme_classic()
+
+dat_fig1 <- dat_fig1 %>% arrange(year)
+dat_fig1$growth_research_anicog <- c(NA, diff(dat_fig1$animcog_research) / head(dat_fig1$animcog_research, -1))
+dat_fig1$growth_review_anicog <- c(NA, diff(dat_fig1$animcog_review) / head(dat_fig1$animcog_review, -1))
+dat_fig1$growth_research_biol <- c(NA, diff(dat_fig1$biol_research) / head(dat_fig1$biol_research, -1))
+dat_fig1$growth_review_biol <- c(NA, diff(dat_fig1$biol_review) / head(dat_fig1$biol_review, -1))
+
+years <- max(dat_fig1$year) - min(dat_fig1$year)
+cagr_anicog_research <- (dat_fig1$animcog_research[nrow(dat_fig1)] / dat_fig1$animcog_research[1])^(1/years) - 1
+cagr_anicog_review <- (dat_fig1$animcog_review[nrow(dat_fig1)] / dat_fig1$animcog_review[1])^(1/years) - 1
+cagr_biol_research <- (dat_fig1$biol_research[nrow(dat_fig1)] / dat_fig1$biol_research[1])^(1/years) - 1
+cagr_biol_review <- (dat_fig1$biol_review[nrow(dat_fig1)] / dat_fig1$biol_review[1])^(1/years) - 1
+
+cat("CAGR (Research_anicig):", cagr_anicog_research * 100, "%\n")
+cat("CAGR (Review_anicog):", cagr_anicog_review * 100, "%\n")
+cat("CAGR (Research_biol):", cagr_biol_research * 100, "%\n")
+cat("CAGR (Review_biol):", cagr_biol_review * 100, "%\n")
+
+```
+
+# fig 3
+```{r}
+# Load the Excel file (make sure the file path is correct)
+dat_fig <- read_excel(
+  path = here::here("data", "S1mapping_Nov2024.xlsx"),
+  sheet = "new_categorisation"
+)
+
+# Filter and count the number of papers per year and research aim
+dat_fig3 <- dat_fig  %>%
+  count(year, research_aim)  # Count papers grouped by year and research aim
+
+# Create a stacked bar plot with text labels
+fig_3 <- ggplot(dat_fig3, aes(x = year, y = n, fill = research_aim)) +
+  geom_col(position = "stack") +  # Stacked bars
+  geom_text(aes(label = n), 
+            position = position_stack(vjust = 0.5),  # Center labels in bars
+            color = "white", size = 4) +  # Text color and size
+  scale_fill_manual(values = c("animal" = "#1f78b4", "human" = "#ffb000"), 
+                    name = "Research aim", 
+                    labels = c("Animal", "Human")) +  # Manual color and legend settings
+  labs(x = "Year", y = "Count of papers") +  # Axis labels
+  theme_classic() 
+
+```
+
+# fig 4
+```{r}
+
+dat_sex <- dat_fig %>%
+  filter(!is.na(research_aim), !is.na(sex_reported), !is.na(sex_included)) %>%
+  mutate(
+    sex_reported = ifelse(sex_reported == "y", "Yes", "No"),
+    sex_included = ifelse(sex_included == "y", "Yes", "No"),
+    research_aim = ifelse(research_aim == "animal", "Animal", "Human")
+  )
+
+# Plot
+fig_4a <- ggplot(dat_sex,
+       aes(axis1 = research_aim, axis2 = sex_reported, axis3 = sex_included)) +
+  geom_alluvium(aes(fill = research_aim), color = "gray80") +
+  geom_stratum(fill = "#f0f0f0", color = "gray50") +
+  geom_text(stat = "stratum", aes(label = paste0(stratum, "\n(n=", after_stat(count), ")")), size = 4) +
+  scale_x_discrete(limits = c("Research aim", "Reported", "Included"), expand = c(.05, .05)) +
+  scale_fill_manual(values = c("Animal" = "#1f78b4", "Human" = "#ffb000")) +
+  labs(y = "Count of papers", x = NULL, fill = "Research aim") +
+  theme_minimal(base_size = 14)
+
+dat_lifestage <- dat_fig %>%
+  filter(!is.na(research_aim), !is.na(life_stage_reported), !is.na(life_stage_included)) %>%
+  mutate(
+    life_stage_reported = ifelse(life_stage_reported == "y", "Yes", "No"),
+    life_stage_included = ifelse(life_stage_included == "y", "Yes", "No"),
+    research_aim = ifelse(research_aim == "animal", "Animal", "Human")
+  )
+
+# Plot
+fig_4b <- ggplot(dat_lifestage,
+       aes(axis1 = research_aim, axis2 = life_stage_reported, axis3 = life_stage_included)) +
+  geom_alluvium(aes(fill = research_aim), color = "gray80") +
+  geom_stratum(fill = "#f0f0f0", color = "gray50") +
+  geom_text(stat = "stratum", aes(label = paste0(stratum, "\n(n=", after_stat(count), ")")), size = 4) +
+  scale_x_discrete(limits = c("Research aim", "Reported", "Included"), expand = c(.05, .05)) +
+  scale_fill_manual(values = c("Animal" = "#1f78b4", "Human" = "#ffb000")) +
+  labs(y = "Count of papers", x = NULL, fill = "Research aim") +
+  theme_minimal(base_size = 14)
+
+fig_4a/fig_4b
+```
+
+# fig 5
+```{r}
+dat_fig5 <- read_excel(
+  path = here::here("data/S1mapping_Nov2024.xlsx"), 
+  sheet = "taxonomic scope")
+
+# Count number of species per study using ';' in species_focus
+dat_species <- dat_fig5 %>%
+  mutate(
+    species_count = ifelse(is.na(species_focus), 0,
+                           str_count(species_focus, ";") + 1)
+  ) %>%
+  filter(!is.na(research_aim)) %>%
+  mutate(research_aim = str_to_title(research_aim))  # "animal" → "Animal"
+
+# Plot: Boxplot with jittered points
+fig_5a <- ggplot(dat_species, aes(x = research_aim, y = species_count, fill = research_aim)) +
+  geom_boxplot(alpha = 0.7, width = 0.5, outlier.shape = NA) +
+  geom_jitter(width = 0.15, alpha = 0.8, size = 1.5) +
+  scale_fill_manual(values = c("Animal" = "#1f78b4", "Human" = "#ffb000")) +
+  labs(x = "Research aim", y = "Species count per study") +
+  theme_classic(base_size = 14) +
+  theme(legend.position = "none")
+
+# Separate multiple taxa per study
+dat_tax_long <- dat_fig5 %>%
+  filter(!is.na(taxon)) %>%
+  separate_rows(taxon, sep = ";") %>%
+  mutate(taxon = str_trim(taxon),
+         research_aim = str_to_title(research_aim))  # Capitalize labels
+
+# Count studies per taxon × research aim
+dat_tax_counts <- dat_tax_long %>%
+  count(taxon, research_aim)
+
+# Reorder taxon by total count
+taxon_order <- dat_tax_counts %>%
+  group_by(taxon) %>%
+  summarise(total = sum(n)) %>%
+  arrange(desc(total)) %>%
+  pull(taxon)
+
+# Plot: Horizontal bar chart
+fig_5b <- ggplot(dat_tax_counts, aes(x = n, y = factor(taxon, levels = taxon_order), fill = research_aim)) +
+  geom_col(position = "stack") +
+  geom_text(aes(label = n), position = position_stack(vjust = 0.5), color = "white", size = 3.5) +
+  scale_fill_manual(values = c("Animal" = "#1f78b4", "Human" = "#ffb000")) +
+  labs(x = "Count of papers", y = "Taxon", fill = "Research aim") +
+  theme_classic(base_size = 14)
+
+fig_5a / fig_5b 
+```
+
+# fig 6
+```{r}
+# Load data
+dat_fig6 <- read_excel(
+  here("data", "S1appraisal_Nov2024.xlsx"), 
+  sheet = "summary")
+
+# Filter only traditional meta-analyses
+dat_fig6a <- dat_fig6 %>%
+  filter(traditional_ma == "Yes") %>%
+  select(registration, language, scripts, publication_bias, heterogeneity, quality_assessment)
+
+# Convert to long format
+dat_fig6a_long <- dat_fig6a %>%
+  pivot_longer(cols = everything(), names_to = "item", values_to = "value") %>%
+  filter(!is.na(value)) %>%
+  group_by(item, value) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  group_by(item) %>%
+  mutate(percent = n / sum(n) * 100)
+
+# Plot
+fig_6a <- ggplot(dat_fig6a_long, aes(x = fct_rev(item), y = percent, fill = value)) +
+  geom_col(width = 0.8) +
+  coord_flip() +
+  scale_fill_manual(values = c("Yes" = "#E0EEE0", "No" = "#838B83")) +
+  labs(x = NULL, y = "Percentage (%)", fill = NULL) +
+  theme_minimal(base_size = 14)
+
+# Select columns for figure 6b
+dat_fig_6b <- dat_fig6 %>%
+  filter(traditional_ma == "Yes") %>%
+  select(
+    registration_deviation,
+    search_strings,
+    search_repeatable,
+    prisma,
+    criteria,
+    studies_excluded_number,
+    studies_screened_number,
+    main_data,
+    additional_data,
+    metadata,
+    non_independence_phylogeny,
+    non_independence_same_study,
+    contribution_statement
+  )
+
+# Convert to long format
+dat_fig_6b_long <- dat_fig_6b %>%
+  pivot_longer(cols = everything(), names_to = "item", values_to = "value") %>%
+  filter(!is.na(value)) %>%
+  group_by(item, value) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  group_by(item) %>%
+  mutate(percent = n / sum(n) * 100)
+
+# Factor levels for plotting
+levels_4 <- c("Adequate", "Insufficient", "Unclear", "Not applicable")
+
+# Plot
+fig_6b <- ggplot(dat_fig_6b_long, aes(x = fct_rev(item), y = percent, fill = factor(value, levels = levels_4))) +
+  geom_col(width = 0.8) +
+  coord_flip() +
+  scale_fill_manual(values = c(
+    "Adequate" = "#018b91",
+    "Insufficient" = "#63c1bf",
+    "Unclear" = "#c4dcdc",
+    "Not applicable" = "#e5efef"
+  )) +
+  labs(x = NULL, y = "Percentage of traditional meta-analytical papers", fill = NULL) +
+  theme_minimal(base_size = 14)
+
+fig_6a / fig_6b
+
+```
+
+# fig 7
+```{r}
+
+dat_fig <- read_excel(here::here("data", "S1mapping_Nov2024.xlsx"), sheet = "new_categorisation")
+journal_meta <- read.csv(here("data", "bibliometric", "journals_meta.csv"))
+
+# Join using journal_meta$journal and dat_fig$journal_abbr
+dat_merged <- left_join(
+  dat_fig,
+  journal_meta,
+  by = c("journal_abbr" = "journal")  
+)
+
+dat_merged <- dat_merged %>%
+  mutate(research_aim = str_to_title(research_aim))
+
+dat_upset <- dat_merged %>%
+  separate_rows(category, sep = ";") %>%
+  mutate(category = str_trim(category)) %>%
+  mutate(present = 1) %>%
+  pivot_wider(
+    id_cols = c(meta_id, research_aim),
+    names_from = category,
+    values_from = present,
+    values_fill = 0
+  )
+
+fig_7 <- upset(dat_upset,
+       intersect = c("Biology", "Psychology", "Neuroscience", "Multidisciplinary"),
+       base_annotations = list(
+         'barplot' = ggplot(mapping = aes(fill = research_aim)) +
+           geom_bar(position = "stack") +
+           scale_y_continuous(breaks = seq(0, 10, by = 2)) +
+           scale_fill_manual(values = c("Animal" = "#1f78b4", "Human" = "#ffb000")) +
+           labs(y = "Count of papers", fill = "Research aim") +
+         theme_classic()
+       ),
+       width_ratio = 0.2,
+       min_size = 1
+)
+
+fig_7
+```
+
+# fig 8
+```{r}
+# Load world shapefile
+world <- ne_countries(scale = "medium", returnclass = "sf")
+
+# Load bibliometric data
+scopus <- read_csv(here("data", "bibliometric", "scopus_meta.csv"))
+scopus_primary <- read_csv(here("data", "bibliometric", "scopus_primary.csv"))
+
+# Define functions for extraction
+extract_first_last <- function(author_list) {
+  authors <- strsplit(author_list, ";")[[1]]
+  c(trimws(authors[1]), trimws(authors[length(authors)]))
+}
+
+extract_affiliation <- function(affiliation_list) {
+  affiliations <- strsplit(affiliation_list, ";")[[1]]
+  c(trimws(affiliations[1]), trimws(affiliations[length(affiliations)]))
+}
+
+extract_country <- function(affiliation) {
+  tail(strsplit(affiliation, ",")[[1]], 1) %>% trimws()
+}
+
+# Define country name corrections
+country_mapping <- c(
+  "USA" = "United States of America",
+  "USA." = "United States of America",
+  "United States" = "United States of America",
+  "Russian Federation" = "Russia",
+  "Czech Republic" = "Czechia", 
+  "United Kingdom." = "United Kingdom"
+)
+
+# Clean and recode meta-analysis data
+bibs <- scopus %>%
+  mutate(
+    first_author = sapply(Authors, \(x) extract_first_last(x)[1]),
+    last_author = sapply(Authors, \(x) extract_first_last(x)[2]),
+    first_author_affiliation = sapply(`Authors with affiliations`, \(x) extract_affiliation(x)[1]),
+    last_author_affiliation = sapply(`Authors with affiliations`, \(x) extract_affiliation(x)[2]),
+    first_author_country = sapply(first_author_affiliation, extract_country),
+    last_author_country = sapply(last_author_affiliation, extract_country),
+    first_author_country = recode(first_author_country, !!!country_mapping)
+  )
+
+# Clean and recode primary-study data
+bibs_primary <- scopus_primary %>%
+  mutate(
+    first_author = sapply(Authors, \(x) extract_first_last(x)[1]),
+    last_author = sapply(Authors, \(x) extract_first_last(x)[2]),
+    first_author_affiliation = sapply(`Authors with affiliations`, \(x) extract_affiliation(x)[1]),
+    last_author_affiliation = sapply(`Authors with affiliations`, \(x) extract_affiliation(x)[2]),
+    first_author_country = sapply(first_author_affiliation, extract_country),
+    last_author_country = sapply(last_author_affiliation, extract_country),
+    first_author_country = recode(first_author_country, !!!country_mapping)
+  )
+
+# Count countries
+first_country_counts <- table(bibs$first_author_country) %>%
+  as.data.frame() %>%
+  rename(Country = Var1, First_counts = Freq)
+
+first_country_counts_primary <- table(bibs_primary$first_author_country) %>%
+  as.data.frame() %>%
+  rename(Country = Var1, First_counts = Freq)
+
+# Join counts to world map
+world_first <- world %>%
+  left_join(first_country_counts, by = c("name" = "Country"))
+
+world_first_primary <- world %>%
+  left_join(first_country_counts_primary, by = c("name" = "Country"))
+
+# Plot a. (meta-analysis)
+p_authors_first <- ggplot(world_first) +
+  geom_sf(aes(fill = First_counts), color = NA) +
+  # geom_sf_text(data = world_first %>% filter(First_counts > 0),
+  #            aes(label = First_counts),
+  #            color = "black", size = 2) +
+  scale_fill_paletteer_c("ggthemes::Blue-Teal", na.value = "#CDCDC1") +
+  labs(title = "a.", fill = NULL) +
+  theme_void() +
+  theme(
+    legend.position = "bottom",
+    legend.title = element_text(size = 10),
+    legend.text = element_text(size = 10)
+  ) +
+  guides(fill = guide_colorbar(
+    title.position = "top",
+    barwidth = 15,
+    barheight = 0.5
+  ))
+
+# Plot b. (primary studies)
+p_authors_first_primary <- ggplot(world_first_primary) +
+  geom_sf(aes(fill = First_counts), color = NA) +
+  # geom_sf_text(data = world_first_primary %>% filter(First_counts > 0),
+  #            aes(label = First_counts),
+  #            color = "black", size = 2) +
+  scale_fill_paletteer_c("ggthemes::Blue-Teal", na.value = "#CDCDC1") +
+  labs(title = "b.", fill = NULL) +
+  theme_void() +
+  theme(
+    legend.position = "bottom",
+    legend.title = element_text(size = 10),
+    legend.text = element_text(size = 10)
+  ) +
+  guides(fill = guide_colorbar(
+    title.position = "top",
+    barwidth = 15,
+    barheight = 0.5
+  ))
+
+# Combine and show both plots
+p_authors_first / p_authors_first_primary
+
+# EU (lon: -25〜45, lat: 35〜72）
+# p_europe <- ggplot(world_first_primary) +
+#   geom_sf(aes(fill = First_counts), color = NA) +
+#   coord_sf(xlim = c(-25, 45), ylim = c(35, 72), expand = FALSE) +
+#   scale_fill_paletteer_c("ggthemes::Blue-Teal", na.value = "#CDCDC1") +
+#   labs(title = "Europe (Primary studies)", fill = "First author count") +
+#   theme_void() +
+#   theme(
+#     legend.position = "bottom",
+#     legend.title = element_text(size = 10),
+#     legend.text = element_text(size = 10)
+#   ) +
+#   guides(fill = guide_colorbar(
+#     title.position = "top",
+#     barwidth = 15,
+#     barheight = 0.5
+#   ))
+# 
+# p_europe <- p_europe +
+#   geom_sf_text(
+#     data = world_first_primary %>% filter(First_counts > 0),
+#     aes(label = First_counts),
+#     size = 2.5,
+#     color = "black"
+#   )
+# p_europe
+```
+
+# fig 9
+```{r}
+# Set custom colors 
+cols <- c(
+  USA = "#00688B",
+  China = "#8B6508",
+  UK  = "#104E8B",  
+  Canada = "#009ACD",
+  Brazil = "#8B3A3A",            
+  Japan = "#CD950C",            
+  Germany = "#1874CD",        
+  Australia = "#8B0A50",           
+  Netherlands ="#1C86EE",         
+  France = "#1E90FF",             
+  Italy = "#6E8B3D",               
+  Spain = "#A2CD5A",              
+  Switzerland = "#00BFFF",
+  Argentina = "#CD5555",       
+  India ="#EE7621",              
+  Iran ="#BF3EFF",             
+  Korea  = "#EEAD0E",      
+  Sweden ="#6E7B8B",     
+  Poland = "#7A8B8B",           
+  Hungary = "#B4CDCD",          
+  South_Africa ="#8B7765",       
+  Austria = "#009ACD",        
+  Turkey ="#68228B",      
+  Mexico = "#00B2EE",      
+  Ireland  = "#008B8B",           
+  Israel   = "#9932CC",   
+  New_Zealand = "#CD1076",  
+  Portugal = "#6E8B3D",     
+  Greece = "#556B2F",     
+  Jordan = "#9A32CD",              
+  Norway = "#A2B5CD",       
+  Belgium = "#7EC0EE",   
+  Chile = "#EE6363",     
+  Denmark = "#BCD2EE",     
+  Finland = "#CAE1FF",     
+  Hong_Kong  = "#FFB90F",      
+  Thailand = "#B8860B",    
+  Slovakia = "#B4CDCD", 
+  Czech_Republic = "#D1EEEE",
+  Pakistan = "#E066FF",            
+  Romania = "#E0FFFF",       
+  Singapore = "#FF8C00",     
+  Costa_Rica = "#00BFFF",  
+  Malaysia = "#FF7F00",     
+  Saudi_Arabia = "#BA55D3",         
+  Colombia = "#FF6A6A",      
+  Panama = "#87CEEB",   
+  Serbia = "#68838B",    
+  Venezuela = "#CD5C5C",    
+  Egypt = "#CDAF95",             
+  Madagascar ="#EECBAD",       
+  United_Arab_Emirates = "#D15FEE", 
+  Bahrain = "#7A378B",    
+  Croatia = "#9AC0CD",        
+  Ethiopia = "#FFDAB9",            
+  Indonesia = "#EE7600",        
+  Latvia = "#B2DFEE",         
+  Saint_Kitts_And_Nevis = "#FFBBFF"
+)
+
+# meta-analysis papers --- 
+# Load meta-analysis bibliometric data
+bib_data <- read_csv(here::here("data", "bibliometric", "scopus_meta.csv"))
+
+# Generate collaboration network matrix (countries)
+NetMatrix2 <- biblioNetwork(bib_data, 
+                            analysis = "collaboration",
+                            network = "countries", 
+                            sep = ";")
+net_matrix2 <- as.matrix(NetMatrix2)
+
+# Clean country names
+net_matrix2[lower.tri(net_matrix2)] <- 0  # Remove lower triangle
+colnames(net_matrix2) <- str_to_title(colnames(net_matrix2))
+rownames(net_matrix2) <- str_to_title(rownames(net_matrix2))
+colnames(net_matrix2)[colnames(net_matrix2) == "Usa"] <- "USA"
+rownames(net_matrix2)[rownames(net_matrix2) == "Usa"] <- "USA"
+colnames(net_matrix2)[colnames(net_matrix2) == "United Kingdom"] <- "UK"
+rownames(net_matrix2)[rownames(net_matrix2) == "United Kingdom"] <- "UK"
+
+# Set circular layout
+country_order <- names(sort(rowSums(net_matrix2), decreasing = TRUE))
+net_matrix2_sorted <- net_matrix2[country_order, country_order]
+
+# Draw plot
+circos.clear()
+circos.par(cell.padding = c(0.02, 0, 0.02, 0))
+circos.initialize(factors = colnames(net_matrix2_sorted), xlim = c(0, 1))
+
+chordDiagram(net_matrix2_sorted,
+             annotationTrack = "grid",
+             preAllocateTracks = 1,
+             grid.col = cols[colnames(net_matrix2_sorted)])
+
+circos.trackPlotRegion(track.index = 1, panel.fun = function(x, y) {
+  xlim <- get.cell.meta.data("xlim")
+  ylim <- get.cell.meta.data("ylim")
+  sector.name <- get.cell.meta.data("sector.index")
+  circos.text(mean(xlim), ylim[1] + 0.1, sector.name,
+              facing = "clockwise", niceFacing = TRUE,
+              adj = c(0, 0.5), cex = 0.8)
+  circos.axis(h = "bottom", labels.cex = 0.6)
+}, bg.border = NA)
+
+# primary studies ---
+# Load and process
+convert2df(file = here::here("data", "bibliometric", "scopus_primary.csv"), 
+           dbsource = "scopus", 
+           format = "csv")
+
+bib_data_primary <- metaTagExtraction(bib_data_primary, Field = "AU1_CO", sep = ";")
+bib_data_primary <- metaTagExtraction(bib_data_primary, Field = "AU_CO", sep = ";")
+
+NetMatrix3 <- biblioNetwork(bib_data_primary, analysis = "collaboration", network = "countries", sep = ";")
+net_matrix3 <- as.matrix(NetMatrix3)
+
+# Clean names
+net_matrix3[lower.tri(net_matrix3)] <- 0
+colnames(net_matrix3) <- str_to_title(colnames(net_matrix3))
+rownames(net_matrix3) <- str_to_title(rownames(net_matrix3))
+colnames(net_matrix3)[colnames(net_matrix3) == "Usa"] <- "USA"
+rownames(net_matrix3)[rownames(net_matrix3) == "Usa"] <- "USA"
+colnames(net_matrix3)[colnames(net_matrix3) == "United Kingdom"] <- "UK"
+rownames(net_matrix3)[rownames(net_matrix3) == "United Kingdom"] <- "UK"
+colnames(net_matrix3)[colnames(net_matrix3) == " Russian Federation"] <- "Russia"
+rownames(net_matrix3)[rownames(net_matrix3) == "Russian Federation"] <- "Russia"
+rownames(net_matrix3) <- gsub(" ", "_", rownames(net_matrix3))
+colnames(net_matrix3) <- gsub(" ", "_", colnames(net_matrix3))
+
+# Sort and subset top 20
+country_order3 <- names(sort(rowSums(net_matrix3), decreasing = TRUE))[1:20]
+net_matrix3_top20 <- net_matrix3[country_order3, country_order3]
+
+# Draw plot
+circos.clear()
+circos.par(cell.padding = c(0.02, 0, 0.02, 0))
+circos.initialize(factors = colnames(net_matrix3_top20), xlim = c(0, 1))
+plot.new()
+chordDiagram(net_matrix3_top20,
+             annotationTrack = "grid",
+             preAllocateTracks = 1,
+             grid.col = cols[colnames(net_matrix3_top20)])
+
+circos.trackPlotRegion(track.index = 1, panel.fun = function(x, y) {
+  xlim <- get.cell.meta.data("xlim")
+  ylim <- get.cell.meta.data("ylim")
+  sector.name <- get.cell.meta.data("sector.index")
+  circos.text(mean(xlim), ylim[1] + 0.1, sector.name,
+              facing = "clockwise", niceFacing = TRUE,
+              adj = c(0, 0.5), cex = 0.8)
+  circos.axis(h = "bottom", labels.cex = 0.6)
+}, bg.border = NA)
+```
+
+# fig S1
+```{r}
+# a - study design
+study_design <- read_excel(
+  here::here("data", "S1mapping_Nov2024.xlsx"),
+  sheet = "study_design")
+
+study_design <- study_design %>%
+  group_by(study_design, inference) %>%
+  summarise(count = n(), .groups = "drop") %>%
+  arrange(desc(count))
+
+study_design$study_design <- factor(study_design$study_design, levels = unique(study_design$study_design))
+
+p_study_design <- ggplot(study_design, aes(x = study_design, y = count, fill = inference)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_manual(values = c("#C1CDCD", "#838B8B")) +
+  geom_text(aes(label = count), 
+            position = position_dodge(width = 0.9), 
+            vjust = -0.3,
+            size = 5) +
+  labs(
+    x = "study design",
+    y = "count of papers",
+    fill = "Inference"
+  ) +
+  theme_classic()
+
+# b - experimental settings
+subject_origin <- read_excel(here::here("data", "S1mapping_Nov2024.xlsx"), sheet = "subject_origin")
+
+subject_origin <- subject_origin %>%
+  mutate(subject_origin = str_replace_all(subject_origin, ";", "+"))　%>% 
+  group_by(subject_origin, inference) %>%
+  summarise(count = n(), .groups = "drop") %>%
+  arrange(desc(count))
+
+subject_origin$subject_origin <- factor(subject_origin$subject_origin, levels = unique(subject_origin$subject_origin))
+
+p_subject_origin <- ggplot(subject_origin, aes(x = subject_origin, y = count, fill = inference)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_fill_manual(values = c("#C1CDCD", "#838B8B")) +
+  geom_text(aes(label = count), 
+            position = position_dodge(width = 0.9), 
+            vjust = -0.3,
+            size = 5) +
+  labs(
+    x = "subject origin",
+    y = "count of papers",
+    fill = "Inference"
+  ) +
+  theme_classic()
+
+p_study_design / p_subject_origin
+```
