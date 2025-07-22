@@ -61,15 +61,17 @@ pacman::p_load(
 ComplexUpset,          # For upset plots
   scico,           # For colours
   paletteer,      # For colours
-  sf
+  sf,
+  ggalluvial
 )
 
 ```
 
 # fig 1
+
 ```{r}
 dat_fig1 <- read.csv(here("data", "fig1_trend.csv"))
-head(fig1, 20)
+
 dat_fig1_long <- dat_fig1 %>%
   pivot_longer(cols = c(animcog_research, animcog_review, 
                         biol_research, biol_review), 
@@ -117,9 +119,38 @@ cat("CAGR (Review_anicog):", cagr_anicog_review * 100, "%\n")
 cat("CAGR (Research_biol):", cagr_biol_research * 100, "%\n")
 cat("CAGR (Review_biol):", cagr_biol_review * 100, "%\n")
 
+
+### check the difference between animal cognition and life science ----
+## glm with poisson distribution
+# change the date format 
+dat_fig1_long <- dat_fig1 %>%
+  pivot_longer(cols = -year, names_to = "group", values_to = "pub")
+
+# compare the increase rate in research paper
+df_research <- dat_fig1_long %>%
+  filter(group %in% c("animcog_research", "biol_research"))
+
+model_research <- glm(pub ~ year * group, data = df_research, family = poisson(link = "log"))
+summary(model_research)
+
+# compare the increase rate in reviews 
+df_review <- dat_fig1_long %>%
+  filter(group %in% c("animcog_review", "biol_review"))
+
+model_review <- glm(pub ~ year * group, data = df_review, family = poisson(link = "log"))
+summary(model_review)
+
+## lm with log transformed
+model_research_lm <- lm(log(pub) ~ year * group, data = df_research)
+summary(model_research_lm)
+
+
+model_review_lm <- lm(log(pub) ~ year * group, data = df_review)
+summary(model_review_lm)
 ```
 
 # fig 3
+
 ```{r}
 # Load the Excel file (make sure the file path is correct)
 dat_fig <- read_excel(
@@ -146,6 +177,7 @@ fig_3 <- ggplot(dat_fig3, aes(x = year, y = n, fill = research_aim)) +
 ```
 
 # fig 4
+
 ```{r}
 
 dat_sex <- dat_fig %>%
@@ -190,6 +222,7 @@ fig_4a/fig_4b
 ```
 
 # fig 5
+
 ```{r}
 dat_fig5 <- read_excel(
   path = here::here("data/S1mapping_Nov2024.xlsx"), 
@@ -243,6 +276,7 @@ fig_5a / fig_5b
 ```
 
 # fig 6
+
 ```{r}
 # Load data
 dat_fig6 <- read_excel(
@@ -320,6 +354,7 @@ fig_6a / fig_6b
 ```
 
 # fig 7
+
 ```{r}
 
 dat_fig <- read_excel(here::here("data", "S1mapping_Nov2024.xlsx"), sheet = "new_categorisation")
@@ -364,6 +399,7 @@ fig_7
 ```
 
 # fig 8
+
 ```{r}
 # Load world shapefile
 world <- ne_countries(scale = "medium", returnclass = "sf")
@@ -509,6 +545,7 @@ p_authors_first / p_authors_first_primary
 ```
 
 # fig 9
+
 ```{r}
 # Set custom colors 
 cols <- c(
@@ -574,7 +611,18 @@ cols <- c(
 
 # meta-analysis papers --- 
 # Load meta-analysis bibliometric data
-bib_data <- read_csv(here::here("data", "bibliometric", "scopus_meta.csv"))
+# bib_data <- read_csv(here::here("data", "bibliometric", "scopus_meta.csv"))
+file <- "data/bibliometric/scopus.bib"
+bib_data <- convert2df(file = file, dbsource = "scopus", format = "csv")
+
+bib_data <- convert2df(here("data","bibliometric", "scopus.bib"), dbsource = "scopus", format = "bibtex")
+dim(bib_data) 
+
+bib_data <- metaTagExtraction(bib_data, Field = "AU1_CO", sep = ";")
+bib_data <- metaTagExtraction(bib_data, Field = "AU_CO", sep = ";")
+dim(bib_data)
+
+# write.csv(bib_data, "scopus.csv")
 
 # Generate collaboration network matrix (countries)
 NetMatrix2 <- biblioNetwork(bib_data, 
@@ -598,13 +646,15 @@ net_matrix2_sorted <- net_matrix2[country_order, country_order]
 
 # Draw plot
 circos.clear()
-circos.par(cell.padding = c(0.02, 0, 0.02, 0))
-circos.initialize(factors = colnames(net_matrix2_sorted), xlim = c(0, 1))
+
+# circos.par(cell.padding = c(0.02, 0, 0.02, 0))
+# circos.initialize(factors = colnames(net_matrix2_sorted), xlim = c(0, 1))
 
 chordDiagram(net_matrix2_sorted,
              annotationTrack = "grid",
              preAllocateTracks = 1,
              grid.col = cols[colnames(net_matrix2_sorted)])
+
 
 circos.trackPlotRegion(track.index = 1, panel.fun = function(x, y) {
   xlim <- get.cell.meta.data("xlim")
@@ -618,7 +668,7 @@ circos.trackPlotRegion(track.index = 1, panel.fun = function(x, y) {
 
 # primary studies ---
 # Load and process
-convert2df(file = here::here("data", "bibliometric", "scopus_primary.csv"), 
+bib_data_primary <- convert2df(file = here::here("data", "bibliometric", "scopus_primary.csv"), 
            dbsource = "scopus", 
            format = "csv")
 
@@ -647,9 +697,9 @@ net_matrix3_top20 <- net_matrix3[country_order3, country_order3]
 
 # Draw plot
 circos.clear()
-circos.par(cell.padding = c(0.02, 0, 0.02, 0))
-circos.initialize(factors = colnames(net_matrix3_top20), xlim = c(0, 1))
-plot.new()
+# circos.par(cell.padding = c(0.02, 0, 0.02, 0))
+# circos.initialize(factors = colnames(net_matrix3_top20), xlim = c(0, 1))
+# plot.new()
 chordDiagram(net_matrix3_top20,
              annotationTrack = "grid",
              preAllocateTracks = 1,
@@ -664,9 +714,11 @@ circos.trackPlotRegion(track.index = 1, panel.fun = function(x, y) {
               adj = c(0, 0.5), cex = 0.8)
   circos.axis(h = "bottom", labels.cex = 0.6)
 }, bg.border = NA)
+
 ```
 
 # fig S1
+
 ```{r}
 # a - study design
 study_design <- read_excel(
