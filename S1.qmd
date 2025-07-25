@@ -547,6 +547,7 @@ p_authors_first / p_authors_first_primary
 # fig 9
 
 ```{r}
+## do not run on the qmd, but do run on console
 # Set custom colors 
 cols <- c(
   USA = "#00688B",
