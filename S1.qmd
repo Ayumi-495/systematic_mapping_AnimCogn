@@ -58,7 +58,7 @@ pacman::p_load(
   rnaturalearthdata, # Supporting data for rnaturalearth
   ggrepel,         # For creating better text labels in ggplot2
   ggraph,          # For graph visualization using ggplot2
-ComplexUpset,          # For upset plots
+  ComplexUpset,     # For upset plots
   scico,           # For colours
   paletteer,      # For colours
   sf,
@@ -629,9 +629,8 @@ net_matrix3_top20 <- net_matrix3[country_order3, country_order3]
 
 # Draw plot
 circos.clear()
-# circos.par(cell.padding = c(0.02, 0, 0.02, 0))
-# circos.initialize(factors = colnames(net_matrix3_top20), xlim = c(0, 1))
-# plot.new()
+circos.par(track.margin = c(0.01, 0.01), gap.degree = 1.5)
+
 chordDiagram(net_matrix3_top20,
              annotationTrack = "grid",
              preAllocateTracks = 1,
@@ -641,17 +640,18 @@ circos.trackPlotRegion(track.index = 1, panel.fun = function(x, y) {
   xlim <- get.cell.meta.data("xlim")
   ylim <- get.cell.meta.data("ylim")
   sector.name <- get.cell.meta.data("sector.index")
-  circos.text(mean(xlim), ylim[1] + 0.1, sector.name,
+circos.text(mean(xlim), ylim[1] + 0.3, sector.name,   
               facing = "clockwise", niceFacing = TRUE,
-              adj = c(0, 0.5), cex = 0.8)
-  circos.axis(h = "bottom", labels.cex = 0.6)
+              adj = c(0, 0.5), cex = 0.85) 
+  circos.axis(h = "bottom", labels.cex = 0.5)
 }, bg.border = NA)
+
 
 ```
 
 # fig S1
 ```{r}
-# Load the Excel file (make sure the file path is correct)
+# load the Excel file
 dat_fig <- read_excel(
   path = here::here("data", "S1mapping_Nov2024.xlsx"),
   sheet = "new_categorisation"
